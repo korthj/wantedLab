@@ -5,6 +5,7 @@ import { Comment } from './entities/comment.entity';
 import { CreateCommentDto } from './dto/create-comment.dto';
 import { Board } from '../board/entities/board.entity';
 import { PageDto } from '../common/dto/page.dto';
+import { KeywordAlertService } from '../keyword-alert/keyword-alert.service';
 
 @Injectable()
 export class CommentService {
@@ -13,6 +14,7 @@ export class CommentService {
     private commentRepository: Repository<Comment>,
     @InjectRepository(Board)
     private boardRepository: Repository<Board>,
+    private keywordAlertService: KeywordAlertService,
   ) {}
 
   async create(createCommentDto: CreateCommentDto): Promise<Comment> {
@@ -48,6 +50,9 @@ export class CommentService {
       comment.depth = 0;
     }
 
+    // 댓글 작성 시 키워드 알림 함수 호출
+    await this.keywordAlertService.checkCommentContent(createCommentDto.content, createCommentDto.author);
+    
     return this.commentRepository.save(comment);
   }
 

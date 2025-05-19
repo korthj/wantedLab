@@ -6,16 +6,25 @@ import { CreateBoardDto } from './dto/create-board.dto';
 import { UpdateBoardDto } from './dto/update-board.dto';
 import { SearchBoardDto } from './dto/search-board.dto';
 import { PageDto } from '../common/dto/page.dto';
+import { KeywordAlertService } from '../keyword-alert/keyword-alert.service';
 
 @Injectable()
 export class BoardService {
   constructor(
     @InjectRepository(Board)
     private boardRepository: Repository<Board>,
+    private keywordAlertService: KeywordAlertService,
   ) {}
 
   async create(createBoardDto: CreateBoardDto): Promise<Board> {
     const board = new Board(createBoardDto);
+
+    await this.keywordAlertService.checkBoardContent(
+      createBoardDto.title,
+      createBoardDto.content,
+      createBoardDto.author
+    );
+    
     return await this.boardRepository.save(board);
   }
 
@@ -73,9 +82,12 @@ export class BoardService {
     const board = await this.boardRepository
       .createQueryBuilder('board')
       .leftJoinAndSelect('board.comments', 'comments')
+      .leftJoinAndSelect('comments.children', 'replies')
       .where('board.id = :id', { id })
       .andWhere('board.isDeleted = :isDeleted', { isDeleted: false })
+      .andWhere('comments.parentId IS NULL')
       .orderBy('comments.createdAt', 'ASC')
+      .addOrderBy('replies.createdAt', 'ASC')
       .getOne();
     
     if (!board) {
@@ -92,12 +104,8 @@ export class BoardService {
       throw new UnauthorizedException('Invalid password');
     }
     
-    const updatedBoard = Object.assign(board, {
-      title: updateBoardDto.title || board.title,
-      content: updateBoardDto.content || board.content,
-    });
-    
-    return await this.boardRepository.save(updatedBoard);
+    Object.assign(board, updateBoardDto);
+    return this.boardRepository.save(board);
   }
 
   async remove(id: number, password: string): Promise<void> {
